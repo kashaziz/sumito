@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Browser QA (headless Chrome)
+        run: |
+          npx vinext start --host 127.0.0.1 --port 3197 > server.log 2>&1 &
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9336 \
+            --autoplay-policy=no-user-gesture-required --user-data-dir="$RUNNER_TEMP/chrome" about:blank > /dev/null 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3197/ > /dev/null && curl -sf http://127.0.0.1:9336/json/version > /dev/null && break
+            sleep 1
+          done
+          CDP_PORT=9336 SUMITO_URL=http://127.0.0.1:3197 npm run qa:mobile

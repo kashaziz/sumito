@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="onyx" cx="34%" cy="28%" r="70%"><stop offset="0" stop-color="#8a9391"/><stop offset=".3" stop-color="#2a3131"/><stop offset="1" stop-color="#050707"/></radialGradient>
+    <radialGradient id="pearl" cx="34%" cy="26%" r="70%"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#ddd9cf"/><stop offset="1" stop-color="#9a968d"/></radialGradient>
+  </defs>
+  <polygon points="2,32 17,5 47,5 62,32 47,59 17,59" fill="#262b2a" stroke="#7a807c" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="22.5" cy="32" r="11" fill="url(#onyx)"/>
+  <circle cx="22.5" cy="32" r="13.5" fill="none" stroke="#d5f04a" stroke-width="3"/>
+  <circle cx="43" cy="32" r="11" fill="url(#pearl)"/>
+</svg>

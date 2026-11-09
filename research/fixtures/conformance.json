@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "setups": {
+    "standard": { "black": 14, "white": 14 },
+    "belgian-daisy": { "black": 14, "white": 14 },
+    "german-daisy": { "black": 14, "white": 14 }
+  },
+  "positions": [
+    {
+      "id": "single-has-six-neighbors",
+      "board": { "0,0": "black" },
+      "player": "black",
+      "selected": ["0,0"],
+      "legalDirections": [0, 1, 2, 3, 4, 5]
+    },
+    {
+      "id": "two-push-one-at-edge",
+      "board": { "2,0": "black", "3,0": "black", "4,0": "white" },
+      "player": "black",
+      "selected": ["2,0", "3,0"],
+      "legalDirections": [0],
+      "applyDirection": 0,
+      "captured": 1
+    },
+    {
+      "id": "equal-line-cannot-push",
+      "board": { "-1,0": "black", "0,0": "black", "1,0": "white", "2,0": "white" },
+      "player": "black",
+      "selected": ["-1,0", "0,0"],
+      "illegalDirections": [0]
+    }
+  ]
+}
+

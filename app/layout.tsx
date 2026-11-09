@@ -1,0 +1,52 @@
+import type { Metadata } from "next";
+import { headers } from "next/headers";
+import "./globals.css";
+import { PwaRegister } from "./pwa-register";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
+  const isLoopback = /^(localhost|127\.0\.0\.1|\[::1\])(?::|$)/.test(host);
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? (isLoopback ? "http" : "https");
+  const baseUrl = new URL(`${protocol}://${host}`);
+  const socialImage = new URL("/og.png", baseUrl).toString();
+
+  return {
+    metadataBase: baseUrl,
+    manifest: "/manifest.webmanifest",
+    title: "Sumito — Hex Strategy Game",
+    description: "A free, open-source game of push and position on a hexagon board. Play a friend or the computer, learn with hints and puzzles, on any screen.",
+    openGraph: {
+      title: "Sumito — a duel of push and position",
+      description: "Slide lines of up to three marbles, outnumber your rival, and push six of their marbles off the edge. Free and open source.",
+      type: "website",
+      siteName: "Sumito",
+      images: [{ url: socialImage, width: 1200, height: 630, alt: "The Sumito title and hexagon board with dark and light marbles" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Sumito — a duel of push and position",
+      description: "Slide lines of up to three marbles, outnumber your rival, and push six of their marbles off the edge. Free and open source.",
+      images: [socialImage],
+    },
+    appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Sumito" },
+    icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", type: "image/png", sizes: "192x192" }], apple: "/apple-touch-icon.png" },
+  };
+}
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <html lang="en">
+    <head>
+      {/* vinext 0.0.50 ignores viewportFit, so set the full tag here. Browsers use the last viewport tag.
+          viewport-fit=cover lets the game use the screen beside a landscape notch; CSS keeps controls clear of it. */}
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      <meta name="theme-color" content="#1b1f20" />
+      {/* One display face for titles only; body text stays on the system stack. */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      {/* eslint-disable-next-line @next/next/no-page-custom-font -- this is the App Router root layout, so it covers every route */}
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@600;700&display=swap" />
+    </head>
+    <body>{children}<PwaRegister /></body>
+  </html>;
+}

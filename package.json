@@ -1,0 +1,53 @@
+{
+  "name": "sumito",
+  "version": "1.0.0",
+  "description": "Sumito — a mobile-first, open-source hexagon strategy game of push and position.",
+  "private": true,
+  "license": "MIT",
+  "author": "Kashif Aziz (https://kashifaziz.me)",
+  "homepage": "https://sumito.kashifaziz.me",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kashaziz/sumito.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kashaziz/sumito/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vinext dev",
+    "build": "vinext build",
+    "start": "vinext start",
+    "test": "npm run test:engine && npm run test:ui && npm run test:research && npm run build && node --test tests/rendered-html.test.mjs",
+    "test:engine": "node --experimental-strip-types --test tests/engine.test.ts",
+    "test:ui": "node --experimental-strip-types --test tests/ui.test.ts",
+    "test:research": "PYTHONPATH=research python3 -m unittest discover -s research/tests",
+    "deploy": "SUMITO_DEPLOY=cloudflare npm run build && wrangler deploy",
+    "qa:mobile": "node tests/mobile-browser-qa.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.4.5",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.37.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.26",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.4.5",
+    "react-server-dom-webpack": "19.2.6",
+    "typescript": "5.9.3",
+    "vinext": "0.0.50",
+    "vite": "8.0.13",
+    "wrangler": "4.92.0"
+  }
+}
