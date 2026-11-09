@@ -1,4 +1,6 @@
-const CACHE = "sumito-shell-v4";
+// Small offline cache. Pages: network first, falling back to the cached copy.
+// Hashed assets: cache first. Other origins (for example Google Fonts) are left to the browser.
+const CACHE = "sumito-shell-v5";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -14,24 +16,29 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-  if (event.request.mode === "navigate") {
+  const { request } = event;
+  if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
+
+  if (request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put("/", copy));
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
           return response;
         })
-        .catch(() => caches.match("/")),
+        .catch(async () => (await caches.match(request)) ?? (await caches.match("/"))),
     );
     return;
   }
+
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-      if (response.ok && new URL(event.request.url).origin === self.location.origin) {
+    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+      if (response.ok) {
         const copy = response.clone();
-        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        caches.open(CACHE).then((cache) => cache.put(request, copy));
       }
       return response;
     })),
