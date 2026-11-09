@@ -31,7 +31,7 @@ jobs:
 
       - name: Browser QA (headless Chrome)
         run: |
-          npx vinext start --host 127.0.0.1 --port 3197 > server.log 2>&1 &
+          npx vite preview --host 127.0.0.1 --port 3197 --strictPort > server.log 2>&1 &
           google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9336 \
             --autoplay-policy=no-user-gesture-required --user-data-dir="$RUNNER_TEMP/chrome" about:blank > /dev/null 2>&1 &
           for i in $(seq 1 60); do

@@ -1,4 +1,4 @@
-const CACHE = "sumito-shell-v3";
+const CACHE = "sumito-shell-v4";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {

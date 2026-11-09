@@ -30,17 +30,20 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [socialImage],
     },
     appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Sumito" },
-    icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", type: "image/png", sizes: "192x192" }], apple: "/apple-touch-icon.png" },
   };
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en">
     <head>
-      {/* vinext 0.0.50 ignores viewportFit, so set the full tag here. Browsers use the last viewport tag.
+      {/* vinext ignores viewportFit, so set the full tag here. Browsers use the last viewport tag.
           viewport-fit=cover lets the game use the screen beside a landscape notch; CSS keeps controls clear of it. */}
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       <meta name="theme-color" content="#1b1f20" />
+      {/* vinext 1.x does not render `metadata.icons`, so the icon tags live here. */}
+      <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+      <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
+      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       {/* One display face for titles only; body text stays on the system stack. */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

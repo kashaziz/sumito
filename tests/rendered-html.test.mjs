@@ -7,14 +7,15 @@ let server;
 let serverOutput = "";
 
 test.before(async () => {
-  server = spawn(process.execPath, ["node_modules/vinext/dist/cli.js", "start", "--host", "127.0.0.1", "--port", String(port)], {
+  // vite preview runs the built Worker in Cloudflare's local runtime (workerd).
+  server = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"], {
     cwd: new URL("..", import.meta.url),
     env: { ...process.env, WRANGLER_LOG_PATH: ".wrangler/wrangler-test.log" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (chunk) => { serverOutput += chunk; });
   server.stderr.on("data", (chunk) => { serverOutput += chunk; });
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/`);
       if (response.ok) return;

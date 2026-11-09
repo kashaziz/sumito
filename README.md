@@ -48,7 +48,7 @@ npm run dev          # http://localhost:3000
 |---|---|
 | `npm run dev` | Development server with hot reload |
 | `npm run build` | Production build into `dist/` |
-| `npm start` | Serve the production build locally |
+| `npm start` | Serve the production build locally in Cloudflare's runtime (`vite preview`) |
 | `npm test` | Engine, UI, and Python tests, a production build, and rendered-HTML tests |
 | `npm run typecheck` | TypeScript check |
 | `npm run lint` | ESLint |
@@ -60,7 +60,7 @@ npm run dev          # http://localhost:3000
 `tests/mobile-browser-qa.mjs` drives headless Chrome over the DevTools protocol. It checks four screen sizes, phone landscape, notch safe areas, taps, drags, swipes, keys, the computer opponent, panels, motion, sound events, and the content pages (162 checks).
 
 ```bash
-npm run build && npx vinext start --port 3197 &
+npm run build && npx vite preview --port 3197 --strictPort &
 google-chrome --headless=new --remote-debugging-port=9336 about:blank &
 CDP_PORT=9336 SUMITO_URL=http://127.0.0.1:3197 npm run qa:mobile
 ```
