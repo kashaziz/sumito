@@ -3,12 +3,21 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { PwaRegister } from "./pwa-register";
 
-export async function generateMetadata(): Promise<Metadata> {
+/** Set at build time from SUMITO_CUSTOM_DOMAIN (see vite.config.ts); empty for local runs and forks. */
+declare const __SUMITO_SITE_URL__: string;
+
+async function siteUrl(): Promise<URL> {
+  if (__SUMITO_SITE_URL__) return new URL(__SUMITO_SITE_URL__);
+  // No custom domain: fall back to the request's host (local runs, workers.dev, forks).
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
   const isLoopback = /^(localhost|127\.0\.0\.1|\[::1\])(?::|$)/.test(host);
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (isLoopback ? "http" : "https");
-  const baseUrl = new URL(`${protocol}://${host}`);
+  return new URL(`${protocol}://${host}`);
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const baseUrl = await siteUrl();
   const socialImage = new URL("/og.png", baseUrl).toString();
 
   return {

@@ -17,6 +17,8 @@ export default defineConfig(async ({ mode }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    // The public site URL, fixed at build time, so page metadata never trusts request headers.
+    define: { __SUMITO_SITE_URL__: JSON.stringify(customDomain ? `https://${customDomain}` : "") },
     plugins: [
       vinext(),
       cloudflare({

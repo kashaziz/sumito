@@ -327,7 +327,7 @@ export function Game() {
         } catch {
           setToast("That shared match link is invalid or incomplete.");
         }
-      } else if (puzzle && puzzle in PUZZLES) {
+      } else if (puzzle && Object.hasOwn(PUZZLES, puzzle)) {
         setMode("puzzle");
         setPuzzleId(puzzle);
         setStarted(true);
@@ -337,7 +337,7 @@ export function Game() {
       } else {
         // Title screen: preselect the match type the player chose last, but do not start it.
         const last = readStorage<MatchChoice | null>(LAST_MATCH_STORAGE_KEY, null);
-        if (last && last.mode in { local: 1, computer: 1, puzzle: 1 } && last.setupId in SETUPS && last.puzzleId in PUZZLES) {
+        if (last && ["local", "computer", "puzzle"].includes(last.mode) && Object.hasOwn(SETUPS, last.setupId) && Object.hasOwn(PUZZLES, last.puzzleId)) {
           setMode(last.mode);
           setSetupId(last.setupId);
           setDifficulty(last.difficulty);

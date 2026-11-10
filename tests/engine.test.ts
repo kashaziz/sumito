@@ -16,6 +16,7 @@ import {
   type Board,
   type Coord,
   type Player,
+  parseGame,
 } from "../lib/game/engine.ts";
 import { chooseComputerMove } from "../lib/game/ai.ts";
 import { PUZZLES } from "../lib/game/puzzles.ts";
@@ -175,5 +176,12 @@ test("every training puzzle has a legal capturing solution", () => {
       applyMove(puzzle.board, move.selected, puzzle.currentPlayer, puzzle.scores, move).captured > 0,
     );
     assert.ok(capturingMove, puzzle.name);
+  }
+});
+
+test("shared game records reject setup names inherited from Object.prototype", () => {
+  for (const setup of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+    // Rejected up front with the proper message, not by a crash later in the replay.
+    assert.throws(() => parseGame(JSON.stringify({ version: 1, setup, moves: [] })), /Unsupported Sumito match record/, `${setup} must be rejected`);
   }
 });

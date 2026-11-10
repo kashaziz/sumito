@@ -223,7 +223,7 @@ export function serializeGame(record: GameRecord): string {
 
 export function parseGame(value: string): GameRecord {
   const parsed = JSON.parse(value) as Partial<GameRecord>;
-  if (parsed.version !== 1 || !parsed.setup || !(parsed.setup in SETUPS) || !Array.isArray(parsed.moves)) {
+  if (parsed.version !== 1 || !parsed.setup || !Object.hasOwn(SETUPS, parsed.setup) || !Array.isArray(parsed.moves)) {
     throw new Error("Unsupported Sumito match record");
   }
   replayGame(parsed.setup, parsed.moves);
