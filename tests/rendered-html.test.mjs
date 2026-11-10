@@ -103,3 +103,9 @@ test("pages ship a favicon, app icons, and a 1200×630 link-preview image", asyn
   const manifest = await (await fetch(`http://127.0.0.1:${port}/manifest.webmanifest`)).json();
   assert.ok(manifest.icons.some((icon) => icon.purpose === "maskable" && icon.sizes === "512x512"));
 });
+
+test("page metadata ignores client-supplied X-Forwarded-* headers", async () => {
+  const html = await (await fetch(`http://127.0.0.1:${port}/`, { headers: { "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" } })).text();
+  assert.match(html, new RegExp(`property="og:image" content="http://127\\.0\\.0\\.1:${port}/og\\.png"`));
+  assert.doesNotMatch(html, /evil\.example/);
+});

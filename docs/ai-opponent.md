@@ -3,37 +3,35 @@
 The AI plays **white**; the human always plays **black**. It is a classic
 minimax + alpha-beta engine with a hand-tuned heuristic evaluator, not a
 neural network or learned model. All of the logic lives in
-`lib/game/ai.ts`, is invoked from a background thread in `app/ai.worker.ts`,
-and is wired into the UI in `app/page.tsx`.
+`lib/game/ai.ts`, runs on a background thread in `app/ai.worker.ts`, and is
+wired into the UI by `app/game/use-ai.ts` and `app/game/game.tsx`.
 
 ## 1. Triggering a move
 
-`app/page.tsx:164-185` runs a `useEffect` that fires whenever:
+A `useEffect` in `app/game/game.tsx` (the "Computer reply" effect) asks for a move whenever:
 
 - `mode === "computer"`
 - `currentPlayer === "white"` (i.e. it's the AI's turn)
 - the game isn't already won (`!liveWinner`)
 - the player isn't reviewing move history (`!reviewing`)
 
-When those conditions hold, it spins up a dedicated **Web Worker**
-(`new Worker(new URL("./ai.worker.ts", import.meta.url), { type: "module" })`)
-and posts `{ board, scores, player: "white", difficulty }` to it. The worker
-(`app/ai.worker.ts:4-7`) just calls `chooseComputerMove(...)` and posts the
-result back — this keeps the search off the main thread so the UI doesn't
-freeze during deeper searches.
+It calls `requestAi` from `app/game/use-ai.ts`. That hook creates **one Web Worker** on first use and
+reuses it for every computer move and every hint; each request carries an id, so replies are matched
+to their requests. The worker (`app/ai.worker.ts`) just calls `chooseComputerMove(...)` and posts the
+result back, which keeps the search off the main thread.
 
-If the worker throws (`worker.onerror`, page.tsx:175-182), the same
-`chooseComputerMove` call is made synchronously on the main thread as a
-fallback, so the game never gets stuck waiting on a broken worker.
+If the worker fails, pending requests fall back to `chooseComputerMove` on the main thread. Any error
+there resolves to `null`, so a request never hangs. The UI waits at least 350 ms before showing a
+move, so a human can follow it. If the result is `null` (Pearl has no legal move), Pearl passes and
+the turn returns to the player.
 
-The returned `ComputerChoice` (`{ move, score, reasons, examined }`) is
-applied via `commitMove`, and `reasons` are turned into user-facing text
-via `reasonText` (ai.ts:136-143), e.g. "wins a marble immediately",
+The returned `ComputerChoice` (`{ move, score, reasons, examined }`) is applied via `commitMove`, and
+`reasons` are turned into user-facing text via `reasonText`, e.g. "wins a marble immediately",
 "improves central control".
 
 ## 2. Board evaluation (the heuristic)
 
-`evaluatePosition(board, scores, perspective)` (ai.ts:42-53) scores a
+`evaluatePosition(board, scores, perspective)` scores a
 position from one player's point of view:
 
 1. **Terminal check** — if `getWinner(scores)` says the perspective player
@@ -44,7 +42,7 @@ position from one player's point of view:
    (first to 6 in this build's `WINNING_SCORE`).
 3. **Material differential** — `(myPieces - theirPieces) * 4,000`, from
    `boardFeatures`.
-4. **Positional terms**, all derived from `boardFeatures` (ai.ts:29-40):
+4. **Positional terms**, all derived from `boardFeatures`:
    - `center`: sum of `(4 - distance from board center)` per piece — reward
      for controlling the middle of the hex board, weight `20`.
    - `links`: count of same-color pieces adjacent along 3 axial directions
@@ -58,17 +56,16 @@ control center / stay grouped / avoid the edge.
 
 ## 3. Move ordering and pruning
 
-Before searching, every legal move is scored once with `movePriority`
-(ai.ts:55-58) — the resulting position's `evaluatePosition`, plus bonuses
+Before searching, every legal move is scored once with `movePriority` — the resulting position's `evaluatePosition`, plus bonuses
 for pushing opponent pieces (`+800` per piece pushed) and for capturing
-(`+20,000`). `orderedMoves` (ai.ts:60-66) sorts by that priority and keeps
+(`+20,000`). `orderedMoves` sorts by that priority and keeps
 only the top `width` candidates (ties broken by a stable move-id string).
 This both speeds up alpha-beta (better moves searched first prune more)
 and caps the branching factor so search stays fast in the browser.
 
 ## 4. The search itself
 
-`search()` (ai.ts:72-103) is a textbook recursive **minimax with
+`search()` is a textbook recursive **minimax with
 alpha-beta pruning**:
 
 - Recurses until `depth === 0` or the game is won, at which point it
@@ -79,10 +76,14 @@ alpha-beta pruning**:
 - Results are memoized in a `Map` keyed by a serialized
   `positionKey` (board contents + scores + player + remaining depth), so
   transpositions reached via different move orders aren't re-searched.
+- Each cache entry records whether its value is **exact**, a **lower bound** or an **upper bound**.
+  A search that stops early on `beta <= alpha` only proves a bound, so a later lookup reuses the
+  value only when that bound settles the current window; otherwise it narrows the window and searches
+  again. Without this, a cut-off value could be reused as an exact score and mis-rank moves.
 - A `counter` object tracks how many nodes were visited (`examined`),
   surfaced back to the UI/worker for diagnostics.
 
-`chooseComputerMove()` (ai.ts:119-134) is the entry point:
+`chooseComputerMove()` is the entry point. It uses `rankMoves()`, which returns every candidate with its score:
 
 1. Get up to `width` ordered candidate moves for the current position.
 2. Run `search` one ply deeper (`depth - 1`, since the candidate move
@@ -95,14 +96,14 @@ alpha-beta pruning**:
    This is what keeps "easy" mode from being a robotic, always-optimal
    player — it still plays *reasonable* moves (all candidates were already
    filtered/ranked by the heuristic) but with real variety.
-6. `explain()` (ai.ts:105-117) compares board features before/after the
+6. `explain()` compares board features before/after the
    chosen move to generate up to two human-readable `MoveReason`s
    (`captures`, `pushes`, `improves_center`, `joins_group`,
    `escapes_edge`, or the fallback `keeps_options`).
 
 ## 5. Difficulty levels
 
-Three profiles in `PROFILES` (ai.ts:19-23) control search depth, breadth,
+Three profiles in `PROFILES` control search depth, breadth,
 and randomness — there's no time-based cutoff, just fixed limits per
 difficulty:
 
@@ -112,9 +113,15 @@ difficulty:
 | Medium (default) | 2 ply | 14 | 2 | Sees one opponent response ahead, still has some variety |
 | Hard | 3 ply | 18 | 1 | Sees two opponent responses ahead, always plays the single best-scoring move |
 
-Difficulty is chosen in the UI via a `<select>` (page.tsx:318, only shown
-in `mode === "computer"`) and stored in React state (`difficulty`,
-page.tsx:56), defaulting to `medium`.
+Difficulty is chosen with chips in the New match panel (`app/game/sheets.tsx`, shown only for
+"Vs computer") and defaults to `medium`. The last choice is saved on the device; an unknown saved
+value falls back to `medium` (`isDifficulty`).
+
+## How it is tested
+
+`tests/ai.test.ts` checks that, on positions from seeded random games, `rankMoves` gives every
+candidate exactly the same score as a plain minimax with no pruning and no cache (medium and hard).
+It also checks directly that a bound stored after a cut-off is never reused as an exact score.
 
 ## 6. Supporting engine details (for context)
 

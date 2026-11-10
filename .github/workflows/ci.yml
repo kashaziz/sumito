@@ -39,3 +39,4 @@ jobs:
             sleep 1
           done
           CDP_PORT=9336 SUMITO_URL=http://127.0.0.1:3197 npm run qa:mobile
+          CDP_PORT=9336 npm run qa:sw

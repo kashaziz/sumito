@@ -1,12 +1,13 @@
 import vinext from "vinext";
 import { defineConfig, loadEnv } from "vite";
+import { normalizeDomain } from "./lib/site.ts";
 
 export default defineConfig(async ({ mode }) => {
   // Deploy settings come from the environment or an ignored `.env` file, so forks deploy
   // to their own account and domain. See README → Deploy.
   const env = { ...loadEnv(mode, process.cwd(), "SUMITO_"), ...process.env };
   const isPublicDeploy = env.SUMITO_DEPLOY === "cloudflare";
-  const customDomain = isPublicDeploy ? env.SUMITO_CUSTOM_DOMAIN : undefined;
+  const customDomain = isPublicDeploy ? normalizeDomain(env.SUMITO_CUSTOM_DOMAIN) : undefined;
 
   // Keep Wrangler and Miniflare state project-local.
   process.env.WRANGLER_WRITE_LOGS ??= "false";

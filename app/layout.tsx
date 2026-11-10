@@ -8,12 +8,12 @@ declare const __SUMITO_SITE_URL__: string;
 
 async function siteUrl(): Promise<URL> {
   if (__SUMITO_SITE_URL__) return new URL(__SUMITO_SITE_URL__);
-  // No custom domain: fall back to the request's host (local runs, workers.dev, forks).
+  // No custom domain (local runs, workers.dev, forks): use the Host header only. On Cloudflare it is the
+  // routed host name; X-Forwarded-* headers are client-controlled and never trusted.
   const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
+  const host = requestHeaders.get("host") ?? "localhost:3000";
   const isLoopback = /^(localhost|127\.0\.0\.1|\[::1\])(?::|$)/.test(host);
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? (isLoopback ? "http" : "https");
-  return new URL(`${protocol}://${host}`);
+  return new URL(`${isLoopback ? "http" : "https"}://${host}`);
 }
 
 export async function generateMetadata(): Promise<Metadata> {

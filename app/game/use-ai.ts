@@ -11,6 +11,15 @@ type Pending = { request: AiRequest; resolve: (choice: ComputerChoice | null) =>
  * Returns a function that asks the AI for a move. A single Web Worker is created on first use
  * and reused for every request. If the worker fails, requests fall back to the main thread.
  */
+/** Main-thread fallback. Resolves null on any error, so a caller is never left waiting. */
+function chooseSafely(request: AiRequest): ComputerChoice | null {
+  try {
+    return chooseComputerMove(request.board, request.scores, request.player, request.difficulty);
+  } catch {
+    return null;
+  }
+}
+
 export function useAi() {
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef(new Map<number, Pending>());
@@ -22,7 +31,7 @@ export function useAi() {
   }, []);
 
   return useCallback((request: AiRequest) => new Promise<ComputerChoice | null>((resolve) => {
-    const runOnMainThread = () => resolve(chooseComputerMove(request.board, request.scores, request.player, request.difficulty));
+    const runOnMainThread = () => resolve(chooseSafely(request));
     let worker = workerRef.current;
     if (!worker) {
       try {
@@ -42,7 +51,7 @@ export function useAi() {
         if (workerRef.current === created) workerRef.current = null;
         const waiting = [...pendingRef.current.values()];
         pendingRef.current.clear();
-        waiting.forEach(({ request: failed, resolve: done }) => done(chooseComputerMove(failed.board, failed.scores, failed.player, failed.difficulty)));
+        waiting.forEach(({ request: failed, resolve: done }) => done(chooseSafely(failed)));
       };
       workerRef.current = created;
     }

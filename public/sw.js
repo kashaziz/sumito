@@ -3,16 +3,18 @@
 // - Hashed build files (/_next/static/*, and /assets/* from older builds) never change → cache first.
 //   vinext marks /_next/static/* immutable in its _headers file.
 // - Everything else on this origin (pages, manifest, icons, images) → network first; the cached
-//   copy is only an offline fallback. A slow network falls back to a cached copy after a few seconds.
+//   copy is only an offline fallback. Pages wait for the network (a stale page could reference build
+//   files that a newer deploy removed); other files fall back to a cached copy after a few seconds.
+// - At most MAX_IMMUTABLE_ENTRIES hashed files are kept, oldest removed first, so old deploys do not pile up.
 // - vinext page-data requests (RSC: `?_rsc=` / `RSC: 1`) and other origins (e.g. Google Fonts)
 //   are left to the browser.
 //
 // Only hashed files are served cache-first, so a deploy never leaves stale pages behind and the
 // cache name only needs a bump when these rules change.
-const CACHE = "sumito-shell-v6";
+const CACHE = "sumito-shell-v7";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg"];
-const NAVIGATION_TIMEOUT_MS = 3500;
 const RESOURCE_TIMEOUT_MS = 5000;
+const MAX_IMMUTABLE_ENTRIES = 120;
 const IMMUTABLE_PREFIXES = ["/_next/static/", "/assets/"];
 
 self.addEventListener("install", (event) => {
@@ -33,7 +35,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
   if (url.searchParams.has("_rsc") || request.headers.get("RSC") === "1" || url.pathname.endsWith(".rsc")) return;
 
-  if (IMMUTABLE_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
+  if (isImmutable(request.url)) {
     event.respondWith(cacheFirst(event, request));
     return;
   }
@@ -58,8 +60,21 @@ async function cacheFirst(event, request) {
   const cached = await caches.match(request);
   if (cached) return cached;
   const response = await fetch(request);
-  event.waitUntil(store(request, response.clone()));
+  event.waitUntil(store(request, response.clone()).then(trimImmutable));
   return response;
+}
+
+const isImmutable = (url) => IMMUTABLE_PREFIXES.some((prefix) => new URL(url).pathname.startsWith(prefix));
+
+async function trimImmutable() {
+  try {
+    const cache = await caches.open(CACHE);
+    const keys = (await cache.keys()).filter((request) => isImmutable(request.url));
+    const excess = keys.length - MAX_IMMUTABLE_ENTRIES;
+    if (excess > 0) await Promise.all(keys.slice(0, excess).map((request) => cache.delete(request, { ignoreVary: true })));
+  } catch {
+    // Trimming is housekeeping only.
+  }
 }
 
 async function networkFirst(event, request) {
@@ -69,9 +84,9 @@ async function networkFirst(event, request) {
   // Keep the worker alive until the fresh copy is stored, even if a cached copy answered first.
   event.waitUntil(network.then((response) => store(key, response.clone())).catch(() => {}));
 
-  const slow = new Promise((resolve) => setTimeout(resolve, isNavigation ? NAVIGATION_TIMEOUT_MS : RESOURCE_TIMEOUT_MS))
-    .then(() => caches.match(key));
   try {
+    if (isNavigation) return await network;
+    const slow = new Promise((resolve) => setTimeout(resolve, RESOURCE_TIMEOUT_MS)).then(() => caches.match(key));
     const first = await Promise.race([network, slow]);
     if (first) return first; // the network response, or a cached copy after the timeout
     return await network; // timed out with nothing cached: keep waiting for the network

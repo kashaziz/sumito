@@ -19,7 +19,7 @@ import {
   parseGame,
 } from "../lib/game/engine.ts";
 import { chooseComputerMove } from "../lib/game/ai.ts";
-import { PUZZLES } from "../lib/game/puzzles.ts";
+import { PUZZLES, solvesPuzzle } from "../lib/game/puzzles.ts";
 
 const boardWith = (pieces: Array<[Coord, Player]>): Board => Object.fromEntries(
   pieces.map(([coord, player]) => [keyOf(coord), player]),
@@ -184,4 +184,40 @@ test("shared game records reject setup names inherited from Object.prototype", (
     // Rejected up front with the proper message, not by a crash later in the replay.
     assert.throws(() => parseGame(JSON.stringify({ version: 1, setup, moves: [] })), /Unsupported Sumito match record/, `${setup} must be rejected`);
   }
+});
+
+test("malformed shared records are rejected with one clear error, never a crash", () => {
+  const valid = { version: 1, setup: "standard", moves: [] as unknown[] };
+  const cases: Record<string, string> = {
+    "not JSON": "{oops",
+    "null": "null",
+    "a number": "42",
+    "an array": "[]",
+    "setup is not a string": JSON.stringify({ ...valid, setup: ["standard"] }),
+    "a null move": JSON.stringify({ ...valid, moves: [null] }),
+    "selected is a string": JSON.stringify({ ...valid, moves: [{ player: "black", direction: 0, captured: 0, selected: "0,-2" }] }),
+    "direction out of range": JSON.stringify({ ...valid, moves: [{ player: "black", direction: 9, captured: 0, selected: ["0,-2"] }] }),
+    "unknown player": JSON.stringify({ ...valid, moves: [{ player: "red", direction: 1, captured: 0, selected: ["0,-2"] }] }),
+    "too many marbles": JSON.stringify({ ...valid, moves: [{ player: "black", direction: 1, captured: 0, selected: ["0,-2", "1,-2", "2,-2", "0,-3"] }] }),
+    "an illegal move": JSON.stringify({ ...valid, moves: [{ player: "black", direction: 4, captured: 0, selected: ["0,-4"] }] }),
+  };
+  for (const [name, text] of Object.entries(cases)) {
+    assert.throws(() => parseGame(text), /Unsupported Sumito match record/, name);
+  }
+});
+
+test("a valid shared record still parses and keeps only known fields", () => {
+  const board = createInitialBoard();
+  const [move] = legalMoves(board, [{ q: 1, r: -2 }], "black");
+  const record = { version: 1, setup: "standard", moves: [createMoveRecord([{ q: 1, r: -2 }], move, "black", 0)], extra: "ignored" };
+  const parsed = parseGame(JSON.stringify(record));
+  assert.deepEqual(Object.keys(parsed).sort(), ["moves", "setup", "version"]);
+  assert.equal(parsed.moves.length, 1);
+});
+
+test("a puzzle is solved only by a capture from the puzzle's own side", () => {
+  const puzzle = PUZZLES["edge-push"];
+  assert.equal(solvesPuzzle(puzzle, puzzle.currentPlayer, 1), true);
+  assert.equal(solvesPuzzle(puzzle, puzzle.currentPlayer, 0), false);
+  assert.equal(solvesPuzzle(puzzle, puzzle.currentPlayer === "black" ? "white" : "black", 1), false, "a capture by the other side does not solve it");
 });

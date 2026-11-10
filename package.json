@@ -1,7 +1,7 @@
 {
   "name": "sumito",
   "version": "1.0.0",
-  "description": "Sumito \u2014 a mobile-first, open-source hexagon strategy game of push and position.",
+  "description": "Sumito — a mobile-first, open-source hexagon strategy game of push and position.",
   "private": true,
   "license": "MIT",
   "author": "Kashif Aziz (https://kashifaziz.me)",
@@ -22,13 +22,14 @@
     "build": "vinext build",
     "start": "vite preview",
     "test": "npm run test:engine && npm run test:ui && npm run test:research && npm run build && node --test tests/rendered-html.test.mjs",
-    "test:engine": "node --experimental-strip-types --test tests/engine.test.ts",
+    "test:engine": "node --experimental-strip-types --test tests/engine.test.ts tests/ai.test.ts",
     "test:ui": "node --experimental-strip-types --test tests/ui.test.ts",
     "test:research": "PYTHONPATH=research python3 -m unittest discover -s research/tests",
     "deploy": "SUMITO_DEPLOY=cloudflare npm run build && wrangler deploy",
     "qa:mobile": "node tests/mobile-browser-qa.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "qa:sw": "node tests/service-worker-qa.mjs"
   },
   "dependencies": {
     "next": "16.4.5",

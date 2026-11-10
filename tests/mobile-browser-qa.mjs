@@ -453,6 +453,50 @@ const remembered = await evaluate(`({ names: [...document.querySelectorAll(".sco
 check("vs computer match names You and AI", remembered.names[0] === "You" && remembered.names[1] === "AI", remembered);
 check("the live board says what to tap", /Your turn · tap a marble with a green dot/.test(remembered.status ?? ""), remembered.status);
 
+// Robustness: delayed actions and late hints never act on a game the player has left.
+await open("/?tutorial=1", 390, 844);
+await evaluate(`document.querySelector(".cell.is-playable").click(); true`);
+await sleep(80);
+await evaluate(`document.querySelector(".cell.is-target:not(.has-marble)").click(); true`);
+await sleep(80);
+await evaluate(`[...document.querySelectorAll(".coach button")].find((b) => b.textContent === "Exit").click(); true`);
+await sleep(900);
+const afterTutorialExit = await evaluate(`({ title: Boolean(document.querySelector(".intro h1")), tutorial: /Step/.test(document.querySelector(".status-row")?.textContent ?? "") })`);
+check("Exit right after a tutorial move stays on the title screen", afterTutorialExit.title && !afterTutorialExit.tutorial, afterTutorialExit);
+
+await open("/?puzzle=edge-push", 390, 844);
+await evaluate(`document.querySelector('[data-key="2,0"]').click(); true`);
+await sleep(60);
+await evaluate(`document.querySelector('[data-key="3,0"]').click(); true`);
+await sleep(60);
+await evaluate(`document.querySelector('[data-key="4,0"]').click(); true`);
+await sleep(80);
+await evaluate(`[...document.querySelectorAll(".dock button")].find((b) => b.textContent.includes("Undo")).click(); true`);
+await sleep(1200);
+const afterUndo = await evaluate(`({ sheet: document.querySelector("dialog[open]")?.getAttribute("aria-label") ?? null, score: document.querySelector(".score-side b")?.textContent })`);
+check("Undo right after a winning push cancels the win screen", afterUndo.sheet === null && /^5/.test(afterUndo.score ?? ""), afterUndo);
+
+await open("/", 390, 844);
+await evaluate(`[...document.querySelectorAll(".dock button")].find((b) => b.textContent.includes("Hint")).click(); document.querySelector('[aria-label="Back to start"]').click(); true`);
+await sleep(1500);
+const afterHintHome = await evaluate(`({ title: Boolean(document.querySelector(".intro h1")), selected: document.querySelectorAll(".cell.is-selected").length })`);
+check("a hint that arrives after Back to start is ignored", afterHintHome.title && afterHintHome.selected === 0, afterHintHome);
+
+await open("/", 390, 844, { start: false });
+await evaluate(`localStorage.setItem("sumito-last-match", JSON.stringify({ mode: "computer", setupId: "standard", difficulty: "expert", puzzleId: "edge-push" })); true`);
+await open("/", 390, 844, { freshStorage: false, start: false });
+await evaluate(`document.querySelector('nav[aria-label="Start"] .is-primary').click(); true`);
+await sleep(400);
+const restoredDifficulty = await evaluate(`[...document.querySelectorAll('dialog[open] .chips [aria-checked="true"]')].map((b) => b.textContent)`);
+check("a corrupt saved difficulty falls back to Medium", restoredDifficulty.includes("Medium"), restoredDifficulty);
+await evaluate(`document.querySelector("dialog[open] .sheet-primary").click(); true`);
+await sleep(500);
+await evaluate(`document.querySelector('[data-key="1,-2"]').click(); true`);
+await sleep(60);
+await evaluate(`document.querySelector(".cell.is-target:not(.has-marble)").click(); true`);
+await sleep(2500);
+check("…and the computer still replies", /Your turn/.test(await evaluate(`document.querySelector(".status-chip")?.textContent ?? ""`)));
+
 // 14. Phone landscape: board at full height, controls split between the thumbs.
 for (const [width, height] of [[844, 390], [667, 375], [932, 430]]) {
   const tag = `${width}×${height}`;

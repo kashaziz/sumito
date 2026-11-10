@@ -221,13 +221,42 @@ export function serializeGame(record: GameRecord): string {
   return JSON.stringify(record);
 }
 
+const COORD_KEY = /^-?\d+,-?\d+$/;
+
+function isMoveRecord(value: unknown): value is MoveRecord {
+  if (!value || typeof value !== "object") return false;
+  const move = value as Record<string, unknown>;
+  return (move.player === "black" || move.player === "white")
+    && Number.isInteger(move.direction) && (move.direction as number) >= 0 && (move.direction as number) < DIRECTIONS.length
+    && Number.isInteger(move.captured) && (move.captured as number) >= 0
+    && Array.isArray(move.selected) && move.selected.length >= 1 && move.selected.length <= 3
+    && move.selected.every((key) => typeof key === "string" && COORD_KEY.test(key));
+}
+
+/**
+ * Parse a shared match record. Anything malformed, including records whose moves are illegal,
+ * is rejected with one clear error instead of crashing later.
+ */
 export function parseGame(value: string): GameRecord {
-  const parsed = JSON.parse(value) as Partial<GameRecord>;
-  if (parsed.version !== 1 || !parsed.setup || !Object.hasOwn(SETUPS, parsed.setup) || !Array.isArray(parsed.moves)) {
-    throw new Error("Unsupported Sumito match record");
+  const unsupported = () => new Error("Unsupported Sumito match record");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw unsupported();
   }
-  replayGame(parsed.setup, parsed.moves);
-  return parsed as GameRecord;
+  if (!parsed || typeof parsed !== "object") throw unsupported();
+  const record = parsed as Partial<GameRecord>;
+  if (record.version !== 1 || typeof record.setup !== "string" || !Object.hasOwn(SETUPS, record.setup)
+    || !Array.isArray(record.moves) || !record.moves.every(isMoveRecord)) {
+    throw unsupported();
+  }
+  try {
+    replayGame(record.setup, record.moves);
+  } catch {
+    throw unsupported();
+  }
+  return { version: 1, setup: record.setup, moves: record.moves };
 }
 
 export function candidateId(move: CandidateMove): string {

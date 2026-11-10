@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CELLS, DIRECTIONS, keyOf, legalMoves, type Board } from "../lib/game/engine.ts";
+import { normalizeDomain } from "../lib/site.ts";
 import { DIRECTION_GLYPHS, PLATE_APOTHEM, PLATE_HALF_WIDTH, WELL_RADIUS, cellPosition, coordFromPoint, directionFromVector, distanceInsidePlate, lineFromDrag, motionPlan } from "../lib/game/ui.ts";
 
 test("every cell centre maps back to the same cell", () => {
@@ -55,4 +56,13 @@ test("every hole sits fully inside the board plate", () => {
 
 test("the plate is a regular hexagon", () => {
   assert.ok(Math.abs(PLATE_APOTHEM - PLATE_HALF_WIDTH * Math.sqrt(3) / 2) < 0.1);
+});
+
+test("custom domains are normalised to a bare host name", () => {
+  for (const input of ["sumito.example.com", "https://sumito.example.com", "https://sumito.example.com/", " HTTP://Sumito.Example.com/path?x=1 ", "sumito.example.com/"]) {
+    assert.equal(normalizeDomain(input), "sumito.example.com", input);
+  }
+  assert.equal(normalizeDomain(""), undefined);
+  assert.equal(normalizeDomain("   "), undefined);
+  assert.equal(normalizeDomain(undefined), undefined);
 });

@@ -57,3 +57,6 @@ export const PUZZLES: Record<PuzzleId, PuzzleDefinition> = {
     ),
   },
 };
+
+/** A puzzle is solved only by a capture from the side the puzzle asks you to play. */
+export const solvesPuzzle = (puzzle: PuzzleDefinition, mover: Player, captured: number) => captured > 0 && mover === puzzle.currentPlayer;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { reasonText, type Difficulty, type MoveReason } from "../../lib/game/ai";
+import { isDifficulty, reasonText, type Difficulty, type MoveReason } from "../../lib/game/ai";
 import {
   CELLS,
   DIRECTIONS,
@@ -30,7 +30,7 @@ import {
   type Scores,
   type SetupId,
 } from "../../lib/game/engine";
-import { PUZZLES, type PuzzleId } from "../../lib/game/puzzles";
+import { PUZZLES, solvesPuzzle, type PuzzleId } from "../../lib/game/puzzles";
 import { DIRECTION_GLYPHS, motionPlan } from "../../lib/game/ui";
 import { GameBoard, type BoardMotion, type BoardShake } from "./board";
 import { MOTION_STORAGE_KEY, applyReducedMotion, getMotionScale, vibrate } from "./motion";
@@ -167,7 +167,25 @@ export function Game() {
       .map(keyOf));
   }, [board, currentPlayer, humanCanMove]);
 
+  // Delayed UI actions (tutorial steps, the result sheet) and in-flight hints belong to one game.
+  // Starting a new game, going home or undoing cancels them, so they never act on a game that moved on.
+  const timersRef = useRef<number[]>([]);
+  const generationRef = useRef(0);
+  const later = useCallback((action: () => void, delay: number) => {
+    const id = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter((timer) => timer !== id);
+      action();
+    }, delay);
+    timersRef.current.push(id);
+  }, []);
+  const cancelPending = useCallback(() => {
+    timersRef.current.forEach((timer) => window.clearTimeout(timer));
+    timersRef.current = [];
+    generationRef.current += 1;
+  }, []);
+
   const resetMatchState = useCallback(() => {
+    cancelPending();
     setSelected([]);
     setNotice(null);
     setHistory([]);
@@ -176,7 +194,7 @@ export function Game() {
     setAiThinking(false);
     setMotion(null);
     setConfirmRestart(false);
-  }, []);
+  }, [cancelPending]);
 
   const startGame = useCallback((nextSetup: SetupId = setupId) => {
     resetMatchState();
@@ -243,15 +261,15 @@ export function Game() {
       // The learner keeps the move; Pearl never replies during the tutorial.
       setCurrentPlayer("black");
       if (tutorialStep < 3) {
-        window.setTimeout(() => startTutorial(3), animated ? 450 : 0);
+        later(() => startTutorial(3), animated ? 450 : 0);
       } else if (result.captured) {
-        window.setTimeout(() => {
+        later(() => {
           setToast("Tutorial complete — you are ready.");
           setMode("local");
           startGame("standard");
         }, animated ? 700 : 0);
       } else {
-        window.setTimeout(() => {
+        later(() => {
           startTutorial(3);
           setNotice("Not yet. Use all three marbles in a line.");
         }, animated ? 700 : 0);
@@ -263,16 +281,16 @@ export function Game() {
     if (mode === "computer" && currentPlayer === "black") setAiThinking(true);
     // End of game (or a solved puzzle): wait for the fall to finish, then celebrate and show the result.
     const winner = getWinner(result.scores);
-    const puzzleSolved = mode === "puzzle" && result.captured > 0;
-    if (winner || puzzleSolved) {
+    const showResult = mode === "puzzle" ? solvesPuzzle(PUZZLES[puzzleId], currentPlayer, result.captured) : Boolean(winner);
+    if (showResult) {
       const humanLost = mode === "computer" && winner === "white";
-      window.setTimeout(() => {
+      later(() => {
         playSound(humanLost ? "lose" : "win");
         if (!humanLost) celebrate();
         openSheet("result");
       }, animated ? 650 : 0);
     }
-  }, [board, currentPlayer, scores, moveLog.length, lastMove, mode, tutorialStep, markCoach, startTutorial, startGame]);
+  }, [board, currentPlayer, scores, moveLog.length, lastMove, mode, puzzleId, tutorialStep, markCoach, startTutorial, startGame, later]);
 
   // On rotation the layout jumps between portrait and landscape. Pause CSS transitions for a moment,
   // so nothing (score marker, board, buttons) slides diagonally between its old and new place.
@@ -340,7 +358,7 @@ export function Game() {
         if (last && ["local", "computer", "puzzle"].includes(last.mode) && Object.hasOwn(SETUPS, last.setupId) && Object.hasOwn(PUZZLES, last.puzzleId)) {
           setMode(last.mode);
           setSetupId(last.setupId);
-          setDifficulty(last.difficulty);
+          setDifficulty(isDifficulty(last.difficulty) ? last.difficulty : "medium");
           setPuzzleId(last.puzzleId);
           setBoard(createInitialBoard(last.setupId));
         }
@@ -360,7 +378,14 @@ export function Game() {
       if (cancelled) return;
       timer = window.setTimeout(() => {
         if (cancelled) return;
-        if (choice) commitRef.current(choice.move.selected, choice.move, choice.reasons);
+        if (choice) {
+          commitRef.current(choice.move.selected, choice.move, choice.reasons);
+        } else {
+          // Pearl has no legal move (or the AI failed): pass the turn so the game never freezes.
+          setCurrentPlayer("black");
+          setLastMove("Pearl has no legal move and passes.");
+          setNotice("Pearl passes · your turn");
+        }
         setAiThinking(false);
       }, Math.max(0, AI_MIN_THINK_MS - (performance.now() - started)));
     });
@@ -434,6 +459,7 @@ export function Game() {
 
   function undo() {
     if (!history.length || aiThinking) return;
+    cancelPending();
     let targetIndex = history.length - 1;
     if (mode === "computer" && history[targetIndex].currentPlayer === "white" && targetIndex > 0) targetIndex -= 1;
     const previous = history[targetIndex];
@@ -452,9 +478,11 @@ export function Game() {
   async function requestHint() {
     if (!humanCanMove) return;
     setHintPending(true);
+    const generation = generationRef.current;
     const choice = await requestAi({ board, scores, player: currentPlayer, difficulty: "medium" });
     setHintPending(false);
-    if (!choice) return;
+    // Ignore a hint for a game the player has already left, restarted or undone.
+    if (!choice || generation !== generationRef.current) return;
     setSelected(choice.move.selected);
     const index = DIRECTIONS.findIndex((direction) => same(direction, choice.move.direction));
     setNotice(`Hint: ${DIRECTION_GLYPHS[index]} ${describeReasons(choice.reasons)}`);
